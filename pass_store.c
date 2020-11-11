@@ -149,6 +149,7 @@ int pass_store_add_user(const char *username, const char *password)
   unsigned char salted_password[SALT_LEN_BASE64 + strlen(password)];
   uint8_t pass_hash[SHA512_DIGEST_LENGTH];
 
+  //generate a random salt
   RAND_bytes(salt, SALT_LEN);
 
 
@@ -156,12 +157,14 @@ int pass_store_add_user(const char *username, const char *password)
   BIO *enc_bio = BIO_new(BIO_s_mem());
   BIO_push(b64_bio, enc_bio);
   BIO_set_flags(b64_bio, BIO_FLAGS_BASE64_NO_NL);
-  BIO_write(b64_bio, salt, SALT_LEN);
+  BIO_write(b64_bio, salt, SALT_LEN); //write the salt to the BIO
   BIO_flush(b64_bio);
-  salt_b64_len = BIO_get_mem_data(enc_bio, &salt_ptr);
+  //set salt_ptr to point at enc_bio and set salt_b64_len tothe length of enc_bio
+  salt_b64_len = BIO_get_mem_data(enc_bio, &salt_ptr);  
 
+  //grab the salt and put it into a proper string
   strcpy(salt_b64, salt_ptr);
-  salt_b64[SALT_LEN_BASE64] = '\0';
+  salt_b64[SALT_LEN_BASE64] = '\0'; //add nul terminating char
 
   BIO_free_all(b64_bio);
 
@@ -169,9 +172,11 @@ int pass_store_add_user(const char *username, const char *password)
   //unsigned char *SHA512(const unsigned char *d, size_t n,
   //    unsigned char *md);
 
+  //put the salt and the password together
   strcpy(salted_password, salt_b64);
   strcpy(salted_password + SALT_LEN_BASE64, password);
 
+  //hash the salt and password together
   SHA512(salted_password, SALT_LEN_BASE64 + strlen(password), pass_hash);
 
 
@@ -244,7 +249,7 @@ int pass_store_remove_user(const char *username)
  */
 int pass_store_check_password(const char *username, const char *password)
 {
-  user_pass_t* users[MAX_USER_LEN];
+  /*user_pass_t* users[MAX_USER_LEN];
   for (int i = 0; i < MAX_USER_LEN; i++)
   {
     users[i] = (user_pass_t*)malloc(sizeof(user_pass_t));
@@ -263,6 +268,79 @@ int pass_store_check_password(const char *username, const char *password)
   {
     free(users[i]);
   }
-  return 0;
+  return 0;*/
+
+  FILE* passFile;
+
+  char* line = NULL;
+  char* user;
+  size_t len = 0;
+  ssize_t read;
+  int success = 0;
+
+  char* salt_b64;
+  char* user_pass;
+  unsigned char salted_password[SALT_LEN_BASE64 + strlen(password)];
+  uint8_t pass_hash[SHA512_DIGEST_LENGTH];
+  long hash_b64_len;
+  char* hash_ptr = NULL;
+
+  passFile = fopen(PASS_FILE_PATH, "r");
+
+  while ((read = getline(&line, &len, passFile)) != -1) {
+    char lineCpy[len];
+    strcpy(lineCpy, line);
+    //strtok is destructive so we have to make a copy of the string
+    user = strtok(lineCpy, ":");
+    //if the username is the same, break so we can check the password
+    if(!strcmp(user, username)){
+      //mark that we actually found the right user
+      success = 1;
+      break;
+    }
+  }
+  //if we cant find the user, fail
+  if(!success){
+    return -1;
+  }
+
+  //first string before a $ is useless
+  strtok(line, "$");
+  //second is the hash alg
+  strtok(NULL, "$");
+  //third is salt
+  salt_b64 = strtok(NULL, "$");
+  //fourth is the hashed pass
+  user_pass = strtok(NULL, "$");
+
+  //put the salt and the password together
+  strcpy(salted_password, salt_b64);
+  strcpy(salted_password + SALT_LEN_BASE64, password);
+
+  //hash the salt and password together
+  SHA512(salted_password, SALT_LEN_BASE64 + strlen(password), pass_hash);
+
+  //essentially decode the pass_hash into a readable string
+  BIO* b64_bio = BIO_new(BIO_f_base64());
+  BIO *enc_bio = BIO_new(BIO_s_mem());
+  BIO_push(b64_bio, enc_bio);
+  BIO_set_flags(b64_bio, BIO_FLAGS_BASE64_NO_NL);
+  BIO_write(b64_bio, pass_hash, SHA512_DIGEST_LENGTH);
+  BIO_flush(b64_bio);
+  hash_b64_len = BIO_get_mem_data(enc_bio, &hash_ptr);
+  
+  char hash_b64[hash_b64_len];
+  strcpy(hash_b64, hash_ptr);
+  BIO_free_all(b64_bio);
+
+  //need to append a newline char to the end so things actually match up
+  strncat(hash_b64, "\n", hash_b64_len);
+
+  //if they match, succeed
+  if(!strcmp(user_pass, hash_b64)){
+    return 0;
+  }
+  //else fail
+  return -1;
 }
 
