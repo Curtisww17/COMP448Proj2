@@ -249,27 +249,6 @@ int pass_store_remove_user(const char *username)
  */
 int pass_store_check_password(const char *username, const char *password)
 {
-  /*user_pass_t* users[MAX_USER_LEN];
-  for (int i = 0; i < MAX_USER_LEN; i++)
-  {
-    users[i] = (user_pass_t*)malloc(sizeof(user_pass_t));
-  }
-  size_t num_users;
-  __pass_store_load(users, &num_users);
-
-
-  for (int i = 0; i < num_users; i++)
-  {
-    fprintf(stderr, "usr: %s, salt_b64: %s\n", users[i]->username, users[i]->salt);
-  }
-
-
-  for (int i = 0; i < MAX_USER_LEN; i++)
-  {
-    free(users[i]);
-  }
-  return 0;*/
-
   FILE* passFile;
 
   char* line = NULL;
