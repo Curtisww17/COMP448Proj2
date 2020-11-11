@@ -193,7 +193,44 @@ int pass_store_add_user(const char *username, const char *password)
  */
 int pass_store_remove_user(const char *username)
 {
-  return 0;
+  FILE* passFile;
+  FILE* newPassFile;
+
+  char* line = NULL;
+  char* user;
+  size_t len = 0;
+  ssize_t read;
+  int success = 0;
+
+  passFile = fopen(PASS_FILE_PATH, "r");
+  newPassFile = fopen("tempPasswords", "w");
+
+  while ((read = getline(&line, &len, passFile)) != -1) {
+    char lineCpy[len];
+    strcpy(lineCpy, line);
+    user = strtok(lineCpy, ":");
+    //if the username is not the same, put that line into the new file
+    if(strcmp(user, username)){
+      fprintf(newPassFile, "%s", line);
+    }
+    else{//username was found
+      success=1;
+    }
+  }
+
+  //close the file pointers
+  fclose(newPassFile);
+  fclose(passFile);
+  //delete the old password file
+  remove(PASS_FILE_PATH);
+  //rename the new password file to the old password file
+  rename("tempPasswords", PASS_FILE_PATH);
+  
+  if(success){ //we found and removed the entry
+    return 0;
+  }
+  //we couldnt find the entry
+  return -1;
 }
 
 
